@@ -64,12 +64,10 @@ func run(name string, relaxedChecks bool) error {
 	if cfgOutput.Handler == nil || *cfgOutput.Handler == "" {
 		return errors.New("lambda configuration has empty handler name")
 	}
-	log.Printf("lambda configured with handler name %q", *cfgOutput.Handler)
 	zipData, err := buildAndZip(".", *cfgOutput.Handler)
 	if err != nil {
 		return err
 	}
-	log.Print("uploading new lambda version")
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	_, err = svc.UpdateFunctionCodeWithContext(ctx, &lambda.UpdateFunctionCodeInput{
@@ -93,7 +91,6 @@ func buildAndZip(dir, handlerName string) ([]byte, error) {
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	log.Printf("%s %s %s", cmd.Env[len(cmd.Env)-2], cmd.Env[len(cmd.Env)-1], cmd)
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
