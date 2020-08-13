@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -136,6 +137,9 @@ func buildAndZip(dir, handlerName string) ([]byte, error) {
 }
 
 func checkMainPackage(dir, lambdaName string, strict bool) error {
+	if lambdaName == "" {
+		panic("checkMainPackage called with an empty lambdaName")
+	}
 	fset := token.NewFileSet()
 	mode := parser.ParseComments
 	if !strict {
@@ -152,12 +156,13 @@ func checkMainPackage(dir, lambdaName string, strict bool) error {
 	if !strict {
 		return nil
 	}
+	nameRegex := regexp.MustCompile(`\b` + regexp.QuoteMeta(lambdaName) + `\b`)
 	const awsDependency = `"github.com/aws/aws-lambda-go/lambda"`
 	var hasLambdaImport bool
 	var mentionsLambdaName bool
 	for _, f := range pkg.Files {
 		if !mentionsLambdaName && f.Doc != nil {
-			mentionsLambdaName = strings.Contains(f.Doc.Text(), lambdaName)
+			mentionsLambdaName = nameRegex.MatchString(f.Doc.Text())
 		}
 		if !hasLambdaImport {
 			for _, s := range f.Imports {
