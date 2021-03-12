@@ -17,6 +17,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -33,7 +34,9 @@ func main() {
 	var relaxedChecks bool
 	flag.BoolVar(&relaxedChecks, "f", relaxedChecks, "skip some safety checks")
 	flag.Parse()
-	if err := run(context.Background(), flag.Arg(0), relaxedChecks); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	if err := run(ctx, flag.Arg(0), relaxedChecks); err != nil {
 		log.Fatal(err)
 	}
 }
