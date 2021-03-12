@@ -22,9 +22,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 )
 
 func main() {
@@ -32,12 +33,12 @@ func main() {
 	var relaxedChecks bool
 	flag.BoolVar(&relaxedChecks, "f", relaxedChecks, "skip some safety checks")
 	flag.Parse()
-	if err := run(flag.Arg(0), relaxedChecks); err != nil {
+	if err := run(context.Background(), flag.Arg(0), relaxedChecks); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(name string, relaxedChecks bool) error {
+func run(ctx context.Context, name string, relaxedChecks bool) error {
 	if name == "" {
 		return errors.New("name must be set")
 	}
@@ -45,22 +46,22 @@ func run(name string, relaxedChecks bool) error {
 	if err := checkMainPackage(".", shortName, !relaxedChecks); err != nil {
 		return err
 	}
-	sess, err := session.NewSession()
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return err
 	}
-	svc := lambda.New(sess)
+	svc := lambda.NewFromConfig(cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cfgOutput, err := svc.GetFunctionConfigurationWithContext(ctx, &lambda.GetFunctionConfigurationInput{
+	cfgOutput, err := svc.GetFunctionConfiguration(ctx, &lambda.GetFunctionConfigurationInput{
 		FunctionName: &name,
 		Qualifier:    aws.String("$LATEST"),
 	})
 	if err != nil {
 		return fmt.Errorf("GetFunctionConfiguration: %w", err)
 	}
-	if cfgOutput.Runtime == nil || *cfgOutput.Runtime != lambda.RuntimeGo1X {
-		return fmt.Errorf("lambda configured with unsupported runtime, want %s", lambda.RuntimeGo1X)
+	if cfgOutput.Runtime != types.RuntimeGo1x {
+		return fmt.Errorf("lambda configured with unsupported runtime, want %s", types.RuntimeGo1x)
 	}
 	if cfgOutput.Handler == nil || *cfgOutput.Handler == "" {
 		return errors.New("lambda configuration has empty handler name")
@@ -69,12 +70,13 @@ func run(name string, relaxedChecks bool) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel = context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	_, err = svc.UpdateFunctionCodeWithContext(ctx, &lambda.UpdateFunctionCodeInput{
+	_, err = svc.UpdateFunctionCode(ctx, &lambda.UpdateFunctionCodeInput{
 		FunctionName: &name,
 		RevisionId:   cfgOutput.RevisionId,
 		ZipFile:      zipData,
+		Publish:      true,
 	})
 	return err
 }
