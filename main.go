@@ -55,8 +55,6 @@ func run(ctx context.Context, name string, relaxedChecks bool) error {
 		return err
 	}
 	svc := lambda.NewFromConfig(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	cfgOutput, err := svc.GetFunctionConfiguration(ctx, &lambda.GetFunctionConfigurationInput{
 		FunctionName: &name,
 		Qualifier:    aws.String("$LATEST"),
@@ -103,7 +101,7 @@ func run(ctx context.Context, name string, relaxedChecks bool) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel = context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	_, err = svc.UpdateFunctionCode(ctx, &lambda.UpdateFunctionCodeInput{
 		FunctionName: &name,
