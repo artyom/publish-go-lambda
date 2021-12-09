@@ -1,5 +1,6 @@
 // Command publish-go-lambda builds Go source in the current directory and
-// publishes it as an existing AWS Lambda (Go 1.x runtime).
+// publishes it as an existing AWS Lambda (either Go 1.x runtime or custom
+// Amazon Linux 2 runtime).
 package main
 
 import (
@@ -63,13 +64,42 @@ func run(ctx context.Context, name string, relaxedChecks bool) error {
 	if err != nil {
 		return fmt.Errorf("GetFunctionConfiguration: %w", err)
 	}
-	if cfgOutput.Runtime != types.RuntimeGo1x {
-		return fmt.Errorf("lambda configured with unsupported runtime, want %s", types.RuntimeGo1x)
+	// Go Lambdas can be deployed as:
+	//
+	// 1. "go1.x" Lambda runtime and "x86_64" arch, in this case the binary
+	// must be named after the handler name
+	//
+	// 2. "provided.al2" Lambda runtime and (arch either "x86_64" OR "arm64"),
+	// in this case the binary name must be always named "bootstrap"
+	var binaryName, lambdaArch string
+	if len(cfgOutput.Architectures) != 1 {
+		return fmt.Errorf("expected single supported architecture, got %v", cfgOutput.Architectures)
 	}
-	if cfgOutput.Handler == nil || *cfgOutput.Handler == "" {
-		return errors.New("lambda configuration has empty handler name")
+	switch cfgOutput.Runtime {
+	case types.RuntimeGo1x:
+		if cfgOutput.Handler == nil || *cfgOutput.Handler == "" {
+			return errors.New("lambda configuration has empty handler name")
+		}
+		if arch := cfgOutput.Architectures[0]; arch != types.ArchitectureX8664 {
+			return fmt.Errorf("%v runtime only supports %v arch, got %v", cfgOutput.Runtime, types.ArchitectureX8664, arch)
+		}
+		binaryName = *cfgOutput.Handler
+		lambdaArch = goAmd64
+	case types.RuntimeProvidedal2:
+		binaryName = "bootstrap"
+		switch arch := cfgOutput.Architectures[0]; arch {
+		case types.ArchitectureX8664:
+			lambdaArch = goAmd64
+		case types.ArchitectureArm64:
+			lambdaArch = goArm64
+		default:
+			return fmt.Errorf("running Go on %v runtime only supports either %v or %v arch, got %v",
+				cfgOutput.Runtime, types.ArchitectureX8664, types.ArchitectureArm64, arch)
+		}
+	default:
+		return fmt.Errorf("lambda configured with unsupported runtime, want %s or %s", types.RuntimeGo1x, types.RuntimeProvidedal2)
 	}
-	zipData, err := buildAndZip(".", *cfgOutput.Handler)
+	zipData, err := buildAndZip(".", lambdaArch, binaryName)
 	if err != nil {
 		return err
 	}
@@ -84,7 +114,7 @@ func run(ctx context.Context, name string, relaxedChecks bool) error {
 	return err
 }
 
-func buildAndZip(dir, handlerName string) ([]byte, error) {
+func buildAndZip(dir, arch, handlerName string) ([]byte, error) {
 	tdir, err := ioutil.TempDir("", "publish-go-lambda-*")
 	if err != nil {
 		return nil, err
@@ -94,7 +124,7 @@ func buildAndZip(dir, handlerName string) ([]byte, error) {
 	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-trimpath",
 		"-o", binPath)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+arch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -195,3 +225,6 @@ func init() {
 		flag.PrintDefaults()
 	}
 }
+
+const goAmd64 = "amd64"
+const goArm64 = "arm64"
