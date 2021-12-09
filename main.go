@@ -156,18 +156,12 @@ func buildAndZip(dir, arch, handlerName string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	begin := time.Now()
 	if _, err := io.Copy(w, f); err != nil {
 		return nil, err
 	}
 	if err := zw.Close(); err != nil {
 		return nil, err
 	}
-	log.Printf("compressed from %.1fM to %.1fM in %v, compression ratio: %.2f",
-		float64(header.UncompressedSize64/1024)/1024,
-		float64(header.CompressedSize64/1024)/1024,
-		time.Since(begin).Round(time.Millisecond),
-		float64(header.CompressedSize64)/float64(header.UncompressedSize64))
 	return buf.Bytes(), nil
 }
 
