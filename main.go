@@ -62,6 +62,9 @@ func run(ctx context.Context, name string, relaxedChecks bool) error {
 	if err != nil {
 		return fmt.Errorf("GetFunctionConfiguration: %w", err)
 	}
+	if cfgOutput.PackageType != types.PackageTypeZip {
+		return fmt.Errorf("only ZIP type packaged Lambdas supported, but this one is deployed as %v", cfgOutput.PackageType)
+	}
 	// Go Lambdas can be deployed as:
 	//
 	// 1. "go1.x" Lambda runtime and "x86_64" arch, in this case the binary
