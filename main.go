@@ -14,7 +14,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -116,7 +115,7 @@ func run(ctx context.Context, name string, relaxedChecks bool) error {
 }
 
 func buildAndZip(dir, arch, handlerName string) ([]byte, error) {
-	tdir, err := ioutil.TempDir("", "publish-go-lambda-*")
+	tdir, err := os.MkdirTemp("", "publish-go-lambda-*")
 	if err != nil {
 		return nil, err
 	}
