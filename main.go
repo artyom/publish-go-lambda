@@ -85,7 +85,7 @@ func run(ctx context.Context, name string, relaxedChecks bool) error {
 		}
 		binaryName = *cfgOutput.Handler
 		lambdaArch = goAmd64
-	case types.RuntimeProvidedal2:
+	case types.RuntimeProvidedal2, types.RuntimeProvidedal2023:
 		binaryName = "bootstrap"
 		switch arch := cfgOutput.Architectures[0]; arch {
 		case types.ArchitectureX8664:
